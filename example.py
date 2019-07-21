@@ -36,7 +36,6 @@ def play_out_hand(env, n_seats):
         # play safe actions, check when noone else has raised, call when raised.
         actions = holdem.safe_actions(community_infos, n_seats=n_seats)
         (player_states, (community_infos, community_cards)), rews, terminal, info = env.step(actions)
-        print("rews: {}".format(rews))
         env.render(mode='human')
 
 

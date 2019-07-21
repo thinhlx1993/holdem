@@ -1,109 +1,125 @@
-# holdem
+# Deep Reinforcement Learning in Keras
 
-:warning: **This is an experimental API, it will most definitely contain bugs, but that's why you are here!**
+Modular Implementation of popular Deep Reinforcement Learning algorithms in Keras:
 
-```sh
-pip install holdem
+- [x] Synchronous N-step Advantage Actor Critic ([A2C](https://github.com/germain-hug/Advanced-Deep-RL-Keras#n-step-advantage-actor-critic-a2c))
+- [x] Asynchronous N-step Advantage Actor-Critic ([A3C](https://github.com/germain-hug/Advanced-Deep-RL-Keras#n-step-asynchronous-advantage-actor-critic-a3c))
+- [x] Deep Deterministic Policy Gradient with Parameter Noise ([DDPG](https://github.com/germain-hug/Advanced-Deep-RL-Keras#deep-deterministic-policy-gradient-ddpg))
+- [x] Double Deep Q-Network ([DDQN](https://github.com/germain-hug/Advanced-Deep-RL-Keras#double-deep-q-network-ddqn))
+- [x] Double Deep Q-Network with Prioritized Experience Replay  ([DDQN + PER](https://github.com/germain-hug/Advanced-Deep-RL-Keras#))
+- [x] Dueling DDQN ([D3QN](https://github.com/germain-hug/Advanced-Deep-RL-Keras#dueling-double-deep-q-network-dueling-ddqn))
+
+## Getting Started
+
+This implementation requires keras 2.1.6, as well as OpenAI gym.
+``` bash
+$ pip install gym keras==2.1.6
 ```
 
-Afaik, this is the first [OpenAI Gym](https://github.com/openai/gym) _No-Limit Texas Hold'em_* (NLTH)
-environment written in Python. It's an experiment to build a Gym environment that is synchronous and
-can support any number of players but also appeal to the general public that wants to learn how to
-"solve" NLTH.
+# Actor-Critic Algorithms
+### N-step Advantage Actor Critic (A2C)
+The Actor-Critic algorithm is a model-free, off-policy method where the critic acts as a value-function approximator, and the actor as a policy-function approximator. When training, the critic predicts the TD-Error and guides the learning of both itself and the actor. In practice, we approximate the TD-Error using the Advantage function. For more stability, we use a shared computational backbone across both networks, as well as an N-step formulation of the discounted rewards. We also incorporate an entropy regularization term ("soft" learning) to encourage exploration. While A2C is simple and efficient, running it on Atari Games quickly becomes intractable due to long computation time.
 
-*Python 3 supports arbitrary length integers :money_with_wings:
+### N-step Asynchronous Advantage Actor Critic (A3C)
+In a similar fashion as the A2C algorithm, the implementation of A3C incorporates asynchronous weight updates, allowing for much faster computation. We use multiple agents to perform gradient ascent asynchronously, over multiple threads. We test A3C on the Atari Breakout environment.
 
-Right now, this is a work in progress, but I believe the API is mature enough for some preliminary
-experiments. Join me in making some interesting progress on multi-agent Gym environments.
+### Deep Deterministic Policy Gradient (DDPG)
+The DDPG algorithm is a model-free, off-policy algorithm for continuous action spaces. Similarly to A2C, it is an actor-critic algorithm in which the actor is trained on a deterministic target policy, and the critic predicts Q-Values. In order to reduce variance and increase stability, we use experience replay and separate target networks. Moreover, as hinted by [OpenAI](https://blog.openai.com/better-exploration-with-parameter-noise/), we encourage exploration through parameter space noise (as opposed to traditional action space noise). We test DDPG on the Lunar Lander environment.
 
-# Usage
+### Running
 
-There is limited documentation at the moment. I'll try to make this less painful to understand.
+```bash
+$ python3 main.py --type A2C --env CartPole-v1
+$ python3 main.py --type A3C --env CartPole-v1 --nb_episodes 10000 --n_threads 16
+$ python3 main.py --type A3C --env BreakoutNoFrameskip-v4 --is_atari --nb_episodes 10000 --n_threads 16
+$ python3 main.py --type DDPG --env LunarLanderContinuous-v2
+```
 
-## `env = holdem.TexasHoldemEnv(n_seats, max_limit=1e9, debug=False)`
+<br />
+<div align="center">
+<img width="40%" src ="https://github.com/germain-hug/Advanced-Deep-RL-Keras/blob/master/results/a2c.png?raw=true" />
+<img width="40%" src ="https://github.com/germain-hug/Advanced-Deep-RL-Keras/blob/master/results/ddpg.png?raw=true" /></div>  
+<br />
 
-Creates a gym environment representation a NLTH Table from the parameters:
+# Deep Q-Learning Algorithms
+### Double Deep Q-Network (DDQN)
+The DQN algorithm is a Q-learning algorithm, which uses a Deep Neural Network as a Q-value function approximator. We estimate target Q-values by leveraging the Bellman equation, and gather experience through an epsilon-greedy policy. For more stability, we sample past experiences randomly (Experience Replay). A variant of the DQN algorithm is the Double-DQN (or DDQN). For a more accurate estimation of our Q-values, we use a second network to temper the overestimations of the Q-values by the original network. This _target_ network is updated at a slower rate Tau, at every training step.
 
-+ `n_seats` - number of available players for the current table. No players are initially allocated
-  to the table. You must call `env.add_player(seat_id, ...)` to populate the table.
-+ `max_limit` - max_limit is used to define the `gym.spaces` API for the class. It does not actually
-  determine any NLTH limits; in support of `gym.spaces.Discrete`.
-+ `debug` - add debug statements to play, will probably be removed in the future.
+### Double Deep Q-Network with Prioritized Experience Replay (DDQN + PER)
+We can further improve our DDQN algorithm by adding in Prioritized Experience Replay (PER), which aims at performing importance sampling on the gathered experience. The experience is ranked by its TD-Error, and stored in a SumTree structure, which allows efficient retrieval of the _(s, a, r, s')_ transitions with the highest error.
 
-### `env.add_player(seat_id, stack=2000)`
+### Dueling Double Deep Q-Network (Dueling DDQN)
+In the dueling variant of the DQN, we incorporate an intermediate layer in the Q-Network to estimate both the state value and the state-dependent advantage function. After reformulation (see [ref](https://arxiv.org/pdf/1511.06581.pdf)), it turns out we can express the estimated Q-Value as the state value, to which we add the advantage estimate and subtract its mean. This factorization of state-independent and state-dependent values helps disentangling learning across actions and yields better results.
 
-Adds a player to the table according to the specified seat (`seat_id`) and the initial amount of
-chips allocated to the player's `stack`. If the table does not have enough seats according to the
-`n_seats` used by the constructor, a `gym.error.Error` will be raised.
+### Running
 
-### `(player_states, community_states) = env.reset()`
+```bash
+$ python3 main.py --type DDQN --env CartPole-v1 --batch_size 64
+$ python3 main.py --type DDQN --env CartPole-v1 --batch_size 64 --with_PER
+$ python3 main.py --type DDQN --env CartPole-v1 --batch_size 64 --dueling
+```
 
-Calling `env.reset` resets the NLTH table to a new hand state. It does not reset any of the players
-stacks, or, reset any of the blinds. New behavior is reserved for a special, future portion of the
-API that is yet another feature that is not standard in Gym environments and is a work in progress.
+<br />
+<div align="center">
+<img width="60%" src ="https://github.com/germain-hug/Advanced-Deep-RL-Keras/blob/master/results/ddqn.png?raw=true" /></div>  
+<br />
 
-The observation returned is a `tuple` of the following by index:
+### Arguments
 
-0. `player_states` - a `tuple` where each entry is `tuple(player_info, player_hand)`, this feature
-   can be used to gather all states and hands by `(player_infos, player_hands) = zip(*player_states)`.
-   + `player_infos` - is a `list` of `int` features describing the individual player. It contains
-     the following by index:
-     0. `[0, 1]` - `0` - seat is empty, `1` - seat is not empty.
-     1. `[0, n_seats - 1]` - player's id, where they are sitting.
-     2. `[0, inf]` - player's current stack.
-     3. `[0, 1]` - player is playing the current hand.
-     4. `[0, inf]` the player's current handrank according to `treys.Evaluator.evaluate(hand, community)`.
-     5. `[0, 1]` - `0` - player has not played this round, `1` - player has played this round.
-     6. `[0, 1]` - `0` - player is currently not betting, `1` - player is betting.
-     7. `[0, 1]` - `0` - player is currently not all-in, `1` - player is all-in.
-     8. `[0, inf]` - player's last sidepot.
-   + `player_hands` - is a `list` of `int` features describing the cards in the player's pocket.
-     The values are encoded based on the `treys.Card` integer representation.
-1. `community_states` - a `tuple(community_infos, community_cards)` where:
-   + `community_infos` - a `list` by index:
-     0. `[0, n_seats - 1]` - location of the dealer button, where big blind is posted.
-     1. `[0, inf]` - the current small blind amount.
-     2. `[0, inf]` - the current big blind amount.
-     3. `[0, inf]` - the current total amount in the community pot.
-     4. `[0, inf]` - the last posted raise amount.
-     5. `[0, inf]` - minimum required raise amount, if above 0.
-     6. `[0, inf]` - the amount required to call.
-     7. `[0, n_seats - 1]` - the current player required to take an action.
-   + `community_cards` - is a `list` of `int` features describing the cards in the community.
-     The values are encoded based on the `treys.Card` integer representation. There are 5 `int` in
-     the list, where `-1` represents that there is no card present.
+| Argument &nbsp; &nbsp; &nbsp; &nbsp; | Description | Values |
+| :---         |     :---      |          :--- |
+| --type         |     Type of RL Algorithm to run      |  Choose from {A2C, A3C, DDQN, DDPG} |
+| --env     | Specify the environment       | BreakoutNoFrameskip-v4 (default)      |
+| --nb_episodes   | Number of episodes to run     | 5000 (default)    |
+| --batch_size     | Batch Size (DDQN, DDPG)  | 32 (default)      |
+| --consecutive_frames     | Number of stacked consecutive frames       | 4 (default)      |
+| --is_atari     | Whether the environment is an Atari Game with pixel input   | -     |
+| --with_PER     | Whether to use Prioritized Experience Replay (with DDQN)      | -      |
+| --dueling     | Whether to use Dueling Networks (with DDQN)      | -      |
+| --n_threads     | Number of threads (A3C)       | 16 (default)      |
+| --gather_stats     | Whether to compute stats of scores averaged over 10 games (slow, see below)       | -      |
+| --render     | Whether to render the environment as it is training       | -      |
+| --gpu     | GPU index       | 0      |
 
-# Example
+# Visualization & Monitoring
 
+### Model Visualization
+All models are saved under ```<algorithm_folder>/models/``` when finished training. You can visualize them running in the same environment they were trained in by running the ```load_and_run.py``` script. For DQN models, you should specify the path to the desired model in the ```--model_path``` argument. For actor-critic models, you need to specify both weight files in the ```--actor_path``` and ```--critic_path``` arguments.
+
+### Tensorboard monitoring
+Using tensorboard, you can monitor the agent's score as it is training. When training, a log folder with the name matching the chosen environment will be created. For example, to follow the A2C progression on CartPole-v1, simply run:
+```bash
+$ tensorboard --logdir=A2C/tensorboard_CartPole-v1/
+```
+### Results plotting
+When training with the argument`--gather_stats`, a log file is generated containing scores averaged over 10 games at every episode: `logs.csv`. Using [plotly](https://plot.ly/), you can visualize the average reward per episode.
+To do so, you will first need to install plotly and get a [free licence](https://plot.ly/python/getting-started/).
+```bash
+pip3 install plotly
+```
+To set up your credentials, run:
 ```python
-import gym
-import holdem
-
-def play_out_hand(env, n_seats):
-  # reset environment, gather relevant observations
-  (player_states, (community_infos, community_cards)) = env.reset()
-  (player_infos, player_hands) = zip(*player_states)
-
-  # display the table, cards and all
-  env.render(mode='human')
-
-  terminal = False
-  while not terminal:
-    # play safe actions, check when noone else has raised, call when raised.
-    actions = holdem.safe_actions(community_infos, n_seats=n_seats)
-    (player_states, (community_infos, community_cards)), rews, terminal, info = env.step(actions)
-    env.render(mode='human')
-
-env = gym.make('TexasHoldem-v1') # holdem.TexasHoldemEnv(2)
-
-# start with 2 players
-env.add_player(0, stack=2000) # add a player to seat 0 with 2000 "chips"
-env.add_player(1, stack=2000) # add another player to seat 1 with 2000 "chips"
-# play out a hand
-play_out_hand(env, env.n_seats)
-
-# add one more player
-env.add_player(2, stack=2000) # add another player to seat 1 with 2000 "chips"
-# play out another hand
-play_out_hand(env, env.n_seats)
+import plotly
+plotly.tools.set_credentials_file(username='<your_username>', api_key='<your_key>')
 ```
+Finally, to plot the results, run:
+```bash
+python3 utils/plot_results.py <path_to_your_log_file>
+```
+
+# Acknowledgments
+
+- Atari Environment Helper Class template by [@ShanHaoYu](https://github.com/ShanHaoYu/Deep-Q-Network-Breakout/blob/master/environment.py)
+- Atari Environment Wrappers by [OpenAI](github.com/openai/baselines/blob/master/baselines/common/atari_wrappers.py)
+- SumTree Helper Class by [@jaara](https://github.com/jaara/AI-blog/blob/master/SumTree.py)
+
+# References (Papers)
+
+- [Advantage Actor Critic (A2C)](https://papers.nips.cc/paper/1786-actor-critic-algorithms.pdf)
+- [Asynchronous Advantage Actor Critic (A3C)](https://arxiv.org/pdf/1602.01783.pdf)
+- [Deep Deterministic Policy Gradient (DDPG)](http://proceedings.mlr.press/v32/silver14.pdf)
+- [Hindsight Experience Replay (HER)](https://arxiv.org/pdf/1707.01495.pdf)
+- [Deep Q-Learning (DQN)](https://www.cs.toronto.edu/~vmnih/docs/dqn.pdf)
+- [Double Q-Learning (DDQN)](https://arxiv.org/pdf/1509.06461.pdf)
+- [Prioritized Experience Replay (PER)](https://arxiv.org/pdf/1511.05952.pdf)
+- [Dueling Network Architectures (D3QN)](https://arxiv.org/pdf/1511.06581.pdf)
